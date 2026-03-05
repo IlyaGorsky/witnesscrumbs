@@ -16,6 +16,8 @@ interface ReportProps {
   online?: string;
   timestamp?: string;
   filename?: string;
+  /** Base64 data URL полного видео сессии (если запись шла, но отрезки не сохранялись) */
+  fullVideo?: string;
 }
 
 interface AnchorGroup {
@@ -900,6 +902,10 @@ const REPORT_STYLES = `
   .video-player { padding: ${SPACING.base}; background: ${COLORS.bg.primary}; border-top: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.border.light}; }
   .video-player video { width: 100%; max-height: 480px; display: block; }
 
+  .full-video-section { margin-bottom: ${SPACING['3xl']}; border: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.accent.purple}33; border-radius: 6px; overflow: hidden; }
+  .full-video-header { padding: ${SPACING.base} ${SPACING['2xl']}; background: ${COLORS.accent.purple}15; font-family: ${TYPOGRAPHY.family.mono}; font-size: ${TYPOGRAPHY.size.sm}; font-weight: ${TYPOGRAPHY.weight.bold}; color: ${COLORS.accent.purple}; letter-spacing: ${TYPOGRAPHY.letterSpacing.wide}; text-transform: uppercase; }
+  .full-video-section .video-player { border-top: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.border.light}; }
+
   .report-footer { margin-top: ${SPACING['5xl']}; padding-top: ${SPACING['2xl']}; border-top: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.border.light}; font-size: ${TYPOGRAPHY.size.sm}; color: ${COLORS.text.dim}; text-align: center; font-family: ${TYPOGRAPHY.family.mono}; }
 `;
 
@@ -919,6 +925,7 @@ export const Report = ({
     : '',
   online = typeof navigator !== 'undefined' ? (navigator.onLine ? 'online' : 'offline') : '',
   timestamp = new Date().toISOString(),
+  fullVideo,
 }: ReportProps) => {
   const pages = groupByPageAndAnchor(logs);
   const stats = {
@@ -999,14 +1006,23 @@ export const Report = ({
         {globalRequests.length > 0 && <Waterfall requests={globalRequests} startTime={globalRequests[0].timestamp} />}
         <FailedSummary logs={logs} pages={pages} />
 
+        {fullVideo && (
+          <div className="full-video-section">
+            <div className="full-video-header">SESSION RECORDING</div>
+            <div className="video-player">
+              <video src={fullVideo} controls preload="metadata" />
+            </div>
+          </div>
+        )}
+
         <div className="report-footer">qa-breadcrumbs · {timestamp}</div>
       </body>
     </html>
   );
 };
 
-export const downloadReportAsHtml = (props: ReportProps): void => {
-  const { renderToStaticMarkup } = require('react-dom/server');
+export const downloadReportAsHtml = async (props: ReportProps): Promise<void> => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
   const html = renderToStaticMarkup(<Report {...props} />);
   const blob = new Blob([`<!DOCTYPE html>\n${html}`], { type: 'text/html' });
   const url = URL.createObjectURL(blob);

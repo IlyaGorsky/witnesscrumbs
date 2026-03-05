@@ -415,12 +415,21 @@ export const WitnesscrumbsWidget = (props: QaBreadcrumbsWidgetProps): JSX.Elemen
     showFlash('Cleared');
   }, [breadcumbCollector, showFlash]);
 
-  const handleDownload = useCallback(() => {
-    downloadReportAsHtml({
-      logs: breadcumbCollector.getLogs(),
+  const handleDownload = useCallback(async () => {
+    const currentLogs = breadcumbCollector.getLogs();
+    const hasVideoClips = currentLogs.some((b) => b.type === 'video');
+    let fullVideo: string | undefined;
+
+    if (!hasVideoClips) {
+      fullVideo = (await videoRecorder.getFullVideoBase64()) ?? undefined;
+    }
+
+    await downloadReportAsHtml({
+      logs: currentLogs,
+      fullVideo,
     });
     showFlash('Downloaded!');
-  }, [breadcumbCollector, isRecording, showFlash]);
+  }, [breadcumbCollector, isRecording, videoRecorder, showFlash]);
 
   const toggleErrorExpand = useCallback((timestamp: number) => {
     setExpandedErrors((prev) => {

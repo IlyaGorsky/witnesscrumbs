@@ -261,6 +261,28 @@ export class VideoRecorder {
     return true;
   }
 
+  /**
+   * Получить полное видео из буфера как base64 data URL (без записи в крошки).
+   * Используется для прикрепления к HTML-отчёту.
+   */
+  async getFullVideoBase64(): Promise<string | null> {
+    if (this.chunks.length === 0) return null;
+
+    const videoBlob = new Blob(
+      this.chunks.map((c) => c.blob),
+      { type: 'video/webm' }
+    );
+
+    if (videoBlob.size < 2048) return null;
+
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(videoBlob);
+    });
+  }
+
   // ─── Private Methods ──────────────────────────────────────────────────────
 
   private findChunkIndex(errorTime: number): number {
