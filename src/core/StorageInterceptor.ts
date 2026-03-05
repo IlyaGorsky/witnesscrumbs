@@ -1,4 +1,4 @@
-import { Interceptor, PushFn } from "./types";
+import { Interceptor, PushFn } from './types';
 
 export class StorageInterceptor implements Interceptor {
   private push: PushFn = () => {};
@@ -17,12 +17,16 @@ export class StorageInterceptor implements Interceptor {
 
       Storage.prototype.setItem = function (key: string, value: string) {
         self.originalSetItem!.call(this, key, value);
+        const timestamp = Date.now();
         if (this === localStorage) {
           self.push({
+            timestamp,
             type: 'default',
             category: 'storage',
             message: `LS set "${key}"`,
             level: 'info',
+            shouldBatch: true,
+            batchKey: `ls:${key}`,
             data: { op: 'set', key },
           });
         }
@@ -30,12 +34,16 @@ export class StorageInterceptor implements Interceptor {
 
       Storage.prototype.removeItem = function (key: string) {
         self.originalRemoveItem!.call(this, key);
+        const timestamp = Date.now();
         if (this === localStorage) {
           self.push({
+            timestamp,
             type: 'default',
             category: 'storage',
             message: `LS remove "${key}"`,
             level: 'info',
+            shouldBatch: true,
+            batchKey: `ls:${key}`,
             data: { op: 'remove', key },
           });
         }

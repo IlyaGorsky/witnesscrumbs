@@ -1,4 +1,4 @@
-import type { Breadcrumb } from './BreadcrumbsCollector';
+import type { Breadcrumb } from '../core/types';
 
 export function getIcon(b: Breadcrumb): string {
   switch (b.type) {

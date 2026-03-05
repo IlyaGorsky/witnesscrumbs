@@ -7,9 +7,12 @@ export interface Breadcrumb {
   data?: Record<string, unknown>;
   /** Number of duplicate occurrences (1 = single, 2+ = deduplicated) */
   count?: number;
+
+  shouldBatch?: boolean;
+  batchKey?: string;
 }
 
-export type PushFn = (crumb: Omit<Breadcrumb, 'timestamp'> & { timestamp?: number }) => void;
+export type PushFn = (crumb: Breadcrumb) => void;
 
 export interface Interceptor {
   start(push: PushFn): void;

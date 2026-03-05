@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { BORDERS, COLORS, formatDetail, getIcon, SPACING, TYPOGRAPHY } from './dispay';
-import { Breadcrumb } from './types';
+import { Breadcrumb } from '../core/types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -90,6 +90,7 @@ const groupByPageAndAnchor = (logs: Breadcrumb[]): PageGroup[] => {
         navType: log.data?.navType as string | undefined,
         enteredAt: log.timestamp,
         anchors: [],
+        renderTime: log.data?.renderTime,
       };
       pages.push(currentPage);
       currentAnchor = { anchor: log, children: [] };
@@ -115,6 +116,7 @@ const groupByPageAndAnchor = (logs: Breadcrumb[]): PageGroup[] => {
             message: 'Session events',
             timestamp: log.timestamp,
             level: 'info',
+            renderTime: log.data?.renderTime,
           } as Breadcrumb,
           children: [log],
         };
@@ -616,6 +618,7 @@ const PageGroupComponent = ({ page, index }: { page: PageGroup; index: number })
     >
       <summary className="page-header">
         <span className="page-time">{formatTime(page.enteredAt)}</span>
+        {page.renderTime && <span className="page-duration">{formatDuration(page.renderTime)}</span>}
         <span className="page-url">{page.url}</span>
         {page.navType && <NavTypeBadge navType={page.navType} />}
         {page.duration && page.duration > 100 && <span className="page-duration">{formatDuration(page.duration)}</span>}

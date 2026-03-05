@@ -1,4 +1,4 @@
-import { Interceptor, PushFn } from "./types";
+import { Interceptor, PushFn } from './types';
 
 export interface ConsoleInterceptorConfig {
   captureConsole: boolean;
@@ -13,11 +13,21 @@ const DEFAULTS: ConsoleInterceptorConfig = {
 function safeSerialize(args: unknown[], maxLen = 256): string {
   return args
     .map((arg) => {
-      if (arg === null) return 'null';
-      if (arg === undefined) return 'undefined';
-      if (typeof arg === 'string') return arg;
-      if (arg instanceof Error) return `${arg.name}: ${arg.message}`;
-      if (typeof HTMLElement !== 'undefined' && arg instanceof HTMLElement) return `<${arg.tagName.toLowerCase()}>`;
+      if (arg === null) {
+        return 'null';
+      }
+      if (arg === undefined) {
+        return 'undefined';
+      }
+      if (typeof arg === 'string') {
+        return arg;
+      }
+      if (arg instanceof Error) {
+        return `${arg.name}: ${arg.message}`;
+      }
+      if (typeof HTMLElement !== 'undefined' && arg instanceof HTMLElement) {
+        return `<${arg.tagName.toLowerCase()}>`;
+      }
       try {
         const str = JSON.stringify(arg);
         return str.length > maxLen ? str.slice(0, maxLen) + '…' : str;
@@ -42,14 +52,23 @@ export class ConsoleInterceptor implements Interceptor {
 
     if (this.config.captureConsole) {
       this.originalConsoleError = console.error;
+      // eslint-disable-next-line @typescript-eslint/no-this-alias
       const self = this;
+
       console.error = function (...args: unknown[]) {
-        self.originalConsoleError!.apply(console, args);
+        // 1. Сначала вызываем оригинал, чтобы не мешать дебагу в DevTools
+        if (self.originalConsoleError) {
+          self.originalConsoleError.apply(console, args);
+        }
+
+        // 2. Синхронно фиксируем время и сериализуем
+        // Это важно сделать здесь, так как объекты в args могут измениться позже
         self.push({
           type: 'default',
           category: 'console.error',
           message: safeSerialize(args),
           level: 'error',
+          timestamp: Date.now(),
         });
       };
     }
@@ -76,6 +95,7 @@ export class ConsoleInterceptor implements Interceptor {
       category: 'console.error',
       message: e.message || 'Unknown error',
       level: 'error',
+      timestamp: Date.now(),
       data: { filename: e.filename, lineno: e.lineno },
     });
   };
@@ -84,8 +104,9 @@ export class ConsoleInterceptor implements Interceptor {
     this.push({
       type: 'default',
       category: 'promise.rejection',
-      message: String(e.reason),
+      message: safeSerialize([e.reason]),
       level: 'error',
+      timestamp: Date.now(),
     });
   };
 }

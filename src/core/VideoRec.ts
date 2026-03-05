@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { BreadcrumbsCollector } from './BreadcrumbsCollector';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -65,7 +66,9 @@ export class VideoRecorder {
    * Начать запись экрана
    */
   async startRecording(): Promise<boolean> {
-    if (this.isRecording) return false;
+    if (this.isRecording) {
+      return false;
+    }
 
     try {
       this.stream = await navigator.mediaDevices.getDisplayMedia({
@@ -80,7 +83,9 @@ export class VideoRecorder {
         selfBrowserSurface: 'include',
       });
 
-      if (!this.stream) return false;
+      if (!this.stream) {
+        return false;
+      }
 
       this.mediaRecorder = new MediaRecorder(this.stream, {
         mimeType: 'video/webm;codecs=vp8',
@@ -92,15 +97,13 @@ export class VideoRecorder {
 
       this.mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
-          // Добавляем чанк с таймстемпом
           this.chunks.push({
             blob: e.data,
             timestamp: Date.now(),
           });
 
-          // Ограничиваем размер буфера (кольцевой буфер)
           if (this.chunks.length > this.maxChunks) {
-            this.chunks = this.chunks.slice(-this.maxChunks);
+            this.chunks.shift();
           }
         }
       };
@@ -132,116 +135,60 @@ export class VideoRecorder {
   }
 
   /**
-   * Остановить запись
+   * Остановить запись и дождаться очистки ресурсов
    */
-  stopRecording(): void {
+  async stopRecording(): Promise<void> {
     if (!this.isRecording || !this.mediaRecorder) return;
 
-    if (this.mediaRecorder.state !== 'inactive') {
-      this.mediaRecorder.stop();
-    }
+    return new Promise((resolve) => {
+      const handleStop = () => {
+        this.cleanup();
+        this.collector.push({
+          timestamp: Date.now(),
+          type: 'default',
+          category: 'recording',
+          message: '⏹️ Запись видео остановлена',
+          level: 'info',
+          data: { action: 'stop_recording' },
+        });
+        this.isRecording = false;
+        resolve();
+      };
 
-    this.collector.push({
-      type: 'default',
-      category: 'recording',
-      message: '⏹️ Запись видео остановлена',
-      level: 'info',
-      data: { action: 'stop_recording' },
+      if (this.mediaRecorder!.state !== 'inactive') {
+        this.mediaRecorder!.addEventListener('stop', handleStop, { once: true });
+        this.mediaRecorder!.stop();
+      } else {
+        handleStop();
+      }
     });
-
-    this.isRecording = false;
   }
 
   /**
-   * Сохранить видео для ошибки (вырезает N секунд до и после)
+   * Сохранить всё видео из буфера (для ручного режима)
    */
-  saveVideoForError(errorTimestamp: number): boolean {
-    // Защита от undefined
-    if (!this.chunks) {
-      console.error('VideoRecorder: chunks is undefined!');
-      return false;
-    }
-
-    if (!this.isRecording || this.chunks.length === 0) {
+  async saveVideoForError(errorTimestamp: number): Promise<boolean> {
+    if (!this.isRecording || !this.chunks || this.chunks.length === 0) {
       return false;
     }
 
     const errorTime = Date.now();
+    const { secondsBefore, secondsAfter } = this.config;
 
-    // Находим индекс чанка, ближайшего к ошибке
+    // Находим индексы синхронно (это быстро), а процессинг делаем асинхронно
     const errorChunkIndex = this.findChunkIndex(errorTime);
     if (errorChunkIndex === -1) return false;
 
-    const beforeSeconds = this.config.secondsBefore;
-    const afterSeconds = this.config.secondsAfter;
-
-    // Индексы для обрезки
-    const startIndex = Math.max(0, errorChunkIndex - beforeSeconds);
-    const endIndex = Math.min(this.chunks.length - 1, errorChunkIndex + afterSeconds);
+    const startIndex = Math.max(0, errorChunkIndex - secondsBefore);
+    const endIndex = Math.min(this.chunks.length - 1, errorChunkIndex + secondsAfter);
 
     const chunksToSave = this.chunks.slice(startIndex, endIndex + 1);
-    if (chunksToSave.length === 0) return false;
-
-    // Добавим проверку на пустые blob'ы
     const validChunks = chunksToSave.filter((c) => c.blob && c.blob.size > 0);
+
     if (validChunks.length === 0) return false;
 
-    const videoBlob = new Blob(
-      validChunks.map((c) => c.blob),
-      { type: 'video/webm' } // Убрал codecs=vp8 для совместимости
-    );
-
-    if (videoBlob.size < 2048) return false;
-
-    const reader = new FileReader();
-    reader.readAsDataURL(videoBlob);
-    reader.onloadend = () => {
-      this.collector.push({
-        timestamp: errorTime,
-        type: 'video',
-        category: 'system',
-        message: `📹 Видео ошибки (${beforeSeconds}с до, ${afterSeconds}с после)`,
-        level: 'error',
-        data: {
-          base64: reader.result,
-          duration: `${validChunks.length}s`,
-          size: `${Math.round(videoBlob.size / 1024)}KB`,
-          errorTimestamp,
-        },
-      });
-    };
-
-    return true;
-  }
-  /**
-   * Сохранить всё видео из буфера (для ручного режима)
-   */
-  saveFullVideo(): boolean {
-    if (!this.isRecording || this.chunks.length === 0) return false;
-
-    const videoBlob = new Blob(
-      this.chunks.map((c) => c.blob),
-      { type: 'video/webm;codecs=vp8' }
-    );
-
-    const reader = new FileReader();
-    reader.readAsDataURL(videoBlob);
-    reader.onloadend = () => {
-      this.collector.push({
-        timestamp: Date.now(),
-        type: 'video',
-        category: 'system',
-        message: `📹 Срез видео (${this.chunks.length}с)`,
-        level: 'info',
-        data: {
-          base64: reader.result,
-          duration: `${this.chunks.length}s`,
-          size: `${Math.round(videoBlob.size / 1024)}KB`,
-          full: true,
-        },
-      });
-    };
-
+    // Ждем завершения чтения файла
+    await this.processVideoData(validChunks, errorTime, errorTimestamp, secondsBefore, secondsAfter);
     return true;
   }
 
@@ -260,6 +207,58 @@ export class VideoRecorder {
       isRecording: this.isRecording,
       bufferSeconds: this.chunks.length,
     };
+  }
+
+  /**
+   * Внутренний метод, превращающий чтение файла в Promise
+   */
+  private processVideoData(
+    validChunks: { blob: Blob }[],
+    eventTime: number,
+    errorTimestamp: number,
+    before: number,
+    after: number
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const videoBlob = new Blob(
+        validChunks.map((c) => c.blob),
+        { type: 'video/webm' }
+      );
+
+      if (videoBlob.size < 2048) {
+        resolve();
+        return;
+      }
+
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        this.collector.push({
+          timestamp: eventTime,
+          type: 'video',
+          category: 'system',
+          message: `📹 Видео ошибки (${before}с до, ${after}с после)`,
+          level: 'error',
+          data: {
+            base64: reader.result,
+            duration: `${validChunks.length}s`,
+            size: `${Math.round(videoBlob.size / 1024)}KB`,
+            errorTimestamp,
+          },
+        });
+        resolve();
+      };
+
+      reader.onerror = () => reject(new Error('FileReader failed'));
+      reader.readAsDataURL(videoBlob);
+    });
+  }
+
+  async saveFullVideo(): Promise<boolean> {
+    if (!this.isRecording || this.chunks.length === 0) return false;
+
+    await this.processVideoData(this.chunks, Date.now(), Date.now(), 0, this.chunks.length);
+    return true;
   }
 
   // ─── Private Methods ──────────────────────────────────────────────────────

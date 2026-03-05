@@ -3,10 +3,10 @@
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable no-nested-ternary */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BreadcrumbsCollectorConfig, BreadcrumbsCollector } from './BreadcrumbsCollector';
-import { downloadReportAsHtml } from './QaBreadcrumbsReport';
-import { VideoRecorder } from './VideoRec';
-import { Breadcrumb } from './types';
+import { BreadcrumbsCollectorConfig, BreadcrumbsCollector } from '../core/BreadcrumbsCollector';
+import { downloadReportAsHtml } from './WitnesscrumbsReport';
+import { VideoRecorder } from '../core/VideoRec';
+import { Breadcrumb } from '../core/types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -20,19 +20,40 @@ export interface QaBreadcrumbsWidgetProps extends Partial<BreadcrumbsCollectorCo
 
 // ─── Colors & Constants ──────────────────────────────────────────────────────
 const cursorStyles = `
+
+  :root.is-clicking .qa-recording-cursor {
+    transform: translate3d(calc(var(--mouse-x, -100) * 1px), calc(var(--mouse-y, -100) * 1px), 0) scale(0.8);
+    background: rgba(231, 76, 60, 0.5);
+  }
+
+  .qa-recording-cursor,
+  .qa-recording-label {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .qa-recording-cursor.is-active,
+  .qa-recording-label.is-active {
+    opacity: 1;
+  }
+
   .qa-recording-cursor {
     position: fixed;
     width: 40px;
+    top: 0;
+    left: 0;
     height: 40px;
     border-radius: 50%;
     background: rgba(231, 76, 60, 0.3);
     border: 2px solid #e74c3c;
     box-shadow: 0 0 20px rgba(231, 76, 60, 0.5);
     pointer-events: none;
-    z-index: 2147483646;
-    transform: translate(-50%, -50%);
-    transition: width 0.2s, height 0.2s, background 0.2s;
-    animation: qa-pulse 1.5s infinite;
+    z-index: 9999;
+    transition: none !important;
+    transform: translate3d(calc(var(--mouse-x, -100) * 1px), calc(var(--mouse-y, -100) * 1px), 0);
+    backface-visibility: hidden;
+    will-change: transform;
   }
 
   .qa-recording-cursor::after {
@@ -45,12 +66,6 @@ const cursorStyles = `
     background: #e74c3c;
     border-radius: 50%;
     transform: translate(-50%, -50%);
-  }
-
-  .qa-recording-cursor.click {
-    width: 56px;
-    height: 56px;
-    background: rgba(231, 76, 60, 0.5);
   }
 
   @keyframes qa-pulse {
@@ -293,7 +308,27 @@ function truncateError(message: string): { short: string; full: string; isTrunca
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export const QaBreadcrumbsWidgets = (props: QaBreadcrumbsWidgetProps): JSX.Element => {
+export const formatDuration = (ms) => {
+  if (!ms || ms < 0) return '0:00';
+
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const paddedSeconds = seconds.toString().padStart(2, '0');
+
+  // Если запись длится больше часа, добавляем часы в вывод
+  if (hours > 0) {
+    const paddedMinutes = minutes.toString().padStart(2, '0');
+    return `${hours}:${paddedMinutes}:${paddedSeconds}`;
+  }
+
+  return `${minutes}:${paddedSeconds}`;
+};
+
+
+export const WitnesscrumbsWidget = (props: QaBreadcrumbsWidgetProps): JSX.Element => {
   const breadcumbCollector = useMemo<BreadcrumbsCollector>(() => new BreadcrumbsCollector(props), []);
   const [videoRecorder] = useState(() => new VideoRecorder(breadcumbCollector));
   const [isRecording, setIsRecording] = useState(false);
@@ -302,19 +337,22 @@ export const QaBreadcrumbsWidgets = (props: QaBreadcrumbsWidgetProps): JSX.Eleme
 
   // Таймер для отображения длительности записи
   useEffect(() => {
-    if (!isRecording || !recordingStartTime) {
-      return;
-    }
+    if (!isRecording || !recordingStartTime) return;
 
-    const interval = setInterval(() => {
+    let animationFrameId;
+
+    const update = () => {
       const duration = Date.now() - recordingStartTime;
-      const seconds = Math.floor(duration / 1000);
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      setRecordingDuration(`${minutes}:${remainingSeconds.toString().padStart(2, '0')}`);
-    }, 100);
+      const formatted = formatDuration(duration);
 
-    return () => clearInterval(interval);
+      // Обновляем стейт, только если секунда реально изменилась
+      setRecordingDuration((prev) => (prev !== formatted ? formatted : prev));
+
+      animationFrameId = requestAnimationFrame(update);
+    };
+
+    animationFrameId = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(animationFrameId);
   }, [isRecording, recordingStartTime]);
 
   const [logs, setLogs] = useState<Breadcrumb[]>([]);
@@ -341,7 +379,7 @@ export const QaBreadcrumbsWidgets = (props: QaBreadcrumbsWidgetProps): JSX.Eleme
 
   const toggleRecording = useCallback(async () => {
     if (isRecording) {
-      videoRecorder.stopRecording();
+      await videoRecorder.stopRecording();
       setIsRecording(false);
       setRecordingStartTime(null);
       setRecordingDuration(null);
@@ -356,9 +394,9 @@ export const QaBreadcrumbsWidgets = (props: QaBreadcrumbsWidgetProps): JSX.Eleme
     }
   }, [isRecording, videoRecorder, showFlash]);
 
-  const handleSaveFullVideo = useCallback(() => {
+  const handleSaveFullVideo = useCallback(async () => {
     if (videoRecorder.isActive) {
-      const saved = videoRecorder.saveFullVideo();
+      const saved = await videoRecorder.saveFullVideo();
       if (saved) {
         showFlash('📹 Видео сохранено');
       } else {
@@ -368,8 +406,8 @@ export const QaBreadcrumbsWidgets = (props: QaBreadcrumbsWidgetProps): JSX.Eleme
   }, [videoRecorder, showFlash]);
 
   const handleCopyJSON = useCallback(async () => {
-    console.log(JSON.stringify(breadcumbCollector.getLogs(), null, 2));
     showFlash('JSON copied!');
+    console.log(JSON.stringify({ logs: breadcumbCollector.getLogs() }, null, 2));
   }, [breadcumbCollector, showFlash]);
 
   const handleClear = useCallback(() => {
@@ -378,20 +416,9 @@ export const QaBreadcrumbsWidgets = (props: QaBreadcrumbsWidgetProps): JSX.Eleme
   }, [breadcumbCollector, showFlash]);
 
   const handleDownload = useCallback(() => {
-    if (isRecording) {
-      breadcumbCollector
-        .getLogs()
-        .filter((b) => b.level === 'error')
-        .forEach((b) => {
-          console.log('handleDownload');
-          videoRecorder.saveVideoForError(b.timestamp);
-        });
-    }
-    setTimeout(() => {
-      downloadReportAsHtml({
-        logs: breadcumbCollector.getLogs(),
-      });
-    }, 10000);
+    downloadReportAsHtml({
+      logs: breadcumbCollector.getLogs(),
+    });
     showFlash('Downloaded!');
   }, [breadcumbCollector, isRecording, showFlash]);
 
@@ -443,27 +470,40 @@ export const QaBreadcrumbsWidgets = (props: QaBreadcrumbsWidgetProps): JSX.Eleme
       entriesRef.current.scrollTop = entriesRef.current.scrollHeight;
     }
   }, [logs, panelOpen]);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [isMouseClicked, setIsMouseClicked] = useState(false);
 
   useEffect(() => {
     if (!isRecording) return;
 
+    const root = document.documentElement;
+
     const handleMouseMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
+      root.style.setProperty('--mouse-x', e.clientX.toString());
+      root.style.setProperty('--mouse-y', e.clientY.toString());
     };
 
     const handleMouseDown = () => {
-      setIsMouseClicked(true);
-      setTimeout(() => setIsMouseClicked(false), 200);
+      // Вместо стейта React используем нативный класс
+      root.classList.add('is-clicking');
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
+    const handleMouseUp = () => {
+      // Удаляем класс при отпускании кнопки
+      root.classList.remove('is-clicking');
+    };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
     window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mouseup', handleMouseUp);
+
+      // Чистим за собой при размонтировании
+      root.classList.remove('is-clicking');
+      root.style.removeProperty('--mouse-x');
+      root.style.removeProperty('--mouse-y');
     };
   }, [isRecording]);
 
@@ -484,19 +524,18 @@ export const QaBreadcrumbsWidgets = (props: QaBreadcrumbsWidgetProps): JSX.Eleme
   }, [isRecording]);
 
   return (
-    <div style={{ position: 'fixed', bottom: 16, right: 16, zIndex: 2147483647, fontFamily: TYPOGRAPHY.family.mono }}>
-      {isRecording && (
-        <>
-          <div
-            className={`qa-recording-cursor ${isMouseClicked ? 'click' : ''}`}
-            style={{
-              left: mousePos.x,
-              top: mousePos.y,
-            }}
-          />
-          <div className="qa-recording-label">REC {recordingDuration || '00:00'}</div>
-        </>
-      )}
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 16,
+        right: 16,
+        zIndex: 2147483647,
+        fontFamily: TYPOGRAPHY.family.mono,
+        maxHeight: '200px',
+      }}
+    >
+      <div className={`qa-recording-cursor ${isRecording ? 'is-active' : ''}`} />
+      <div className={`qa-recording-label ${isRecording ? 'is-active' : ''}`}>REC {recordingDuration || '00:00'}</div>
       <div
         style={{
           position: 'absolute',
