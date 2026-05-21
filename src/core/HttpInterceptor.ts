@@ -12,14 +12,15 @@ const DEFAULTS: HttpInterceptorConfig = {
 const SENSITIVE_RE = /token|authorization|cookie|secret|key|session/i;
 const MAX_RESPONSE_BODY = 1024;
 const MAX_READ_SIZE = 102400; // 100KB
-const APP_ORIGIN = window.location.origin;
+const getAppOrigin = (): string =>
+  typeof window !== 'undefined' ? window.location.origin : '';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function isSameOrigin(url: string): boolean {
   if (url.startsWith('/') || url.startsWith('./')) return true;
   try {
-    return new URL(url, APP_ORIGIN).origin === APP_ORIGIN;
+    return new URL(url, getAppOrigin()).origin === getAppOrigin();
   } catch {
     return true;
   }
@@ -27,7 +28,7 @@ function isSameOrigin(url: string): boolean {
 
 function sanitizeUrl(rawUrl: string): string {
   try {
-    const urlObj = new URL(rawUrl, APP_ORIGIN);
+    const urlObj = new URL(rawUrl, getAppOrigin());
     let modified = false;
     urlObj.searchParams.forEach((_, key) => {
       if (SENSITIVE_RE.test(key)) {
@@ -57,7 +58,7 @@ function sanitizeHeaders(source: HeadersInit | undefined | null): Record<string,
 
 function parseGraphQL(url: string): { isGraphQL: boolean; operationName?: string } {
   try {
-    const parsed = new URL(url, APP_ORIGIN);
+    const parsed = new URL(url, getAppOrigin());
     if (!parsed.pathname.endsWith('/graphql')) return { isGraphQL: false };
     const op = parsed.searchParams.get('operationName') || undefined;
     return { isGraphQL: true, operationName: op };
