@@ -54,6 +54,7 @@ export class StorageInterceptor implements Interceptor {
         self.originalClear!.call(this);
         if (isLocal) {
           self.push({
+            timestamp: Date.now(),
             type: 'default',
             category: 'storage',
             message: 'LS clear',

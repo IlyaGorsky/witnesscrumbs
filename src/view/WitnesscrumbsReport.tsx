@@ -32,6 +32,7 @@ interface PageGroup {
   enteredAt: number;
   leftAt?: number;
   duration?: number;
+  renderTime?: unknown;
   anchors: AnchorGroup[];
 }
 
@@ -542,7 +543,7 @@ const AnchorRow = ({ anchor, children }: { anchor: Breadcrumb; children: Breadcr
   const isAutomated = !isTrusted && anchor.type === 'ui.click';
   const navType = anchor.data?.navType as string | undefined;
 
-  let color = COLORS.text.muted;
+  let color: string = COLORS.text.muted;
   if (anchor.category === 'visibility') {
     color = COLORS.accent.purple;
   } else if (anchor.type === 'ui.click') {
@@ -578,8 +579,8 @@ const AnchorRow = ({ anchor, children }: { anchor: Breadcrumb; children: Breadcr
             <span className="anchor-nav-type">
               <NavTypeBadge navType={navType} />
               {anchor.data?.sameDocument === false && <Badge text="cross-doc" color={COLORS.text.muted} />}
-              {anchor.data?.hashChange && <Badge text="hash" color={COLORS.accent.cyan} />}
-              {anchor.data?.userInitiated && <Badge text="user" color={COLORS.accent.green} />}
+              {Boolean(anchor.data?.hashChange) && <Badge text="hash" color={COLORS.accent.cyan} />}
+              {Boolean(anchor.data?.userInitiated) && <Badge text="user" color={COLORS.accent.green} />}
             </span>
           )}
           {formatDetail(anchor) && <span className="anchor-detail">{formatDetail(anchor).trim()}</span>}
@@ -621,7 +622,7 @@ const PageGroupComponent = ({ page, index }: { page: PageGroup; index: number })
     >
       <summary className="page-header">
         <span className="page-time">{formatTime(page.enteredAt)}</span>
-        {page.renderTime && <span className="page-duration">{formatDuration(page.renderTime)}</span>}
+        {typeof page.renderTime === 'number' && <span className="page-duration">{formatDuration(page.renderTime)}</span>}
         <span className="page-url">{page.url}</span>
         {page.navType && <NavTypeBadge navType={page.navType} />}
         {page.duration && page.duration > 100 && <span className="page-duration">{formatDuration(page.duration)}</span>}

@@ -117,6 +117,7 @@ export class VideoRecorder {
       this.isRecording = true;
 
       this.collector.push({
+        timestamp: Date.now(),
         type: 'default',
         category: 'recording',
         message: '🎥 Запись видео начата',

@@ -21,7 +21,7 @@ export class VisibilityInterceptor implements Interceptor {
   private handleVisibility = (): void => {
     if (document.visibilityState === 'hidden') {
       this.hiddenAt = Date.now();
-      this.push({ type: 'default', category: 'visibility', message: 'Tab hidden', level: 'info' });
+      this.push({ timestamp: Date.now(), type: 'default', category: 'visibility', message: 'Tab hidden', level: 'info' });
     } else {
       const awayMs = this.hiddenAt ? Date.now() - this.hiddenAt : 0;
       this.hiddenAt = 0;
@@ -32,6 +32,7 @@ export class VisibilityInterceptor implements Interceptor {
             ? `${Math.round(awayMs / 1000)}s`
             : `${awayMs}ms`;
       this.push({
+        timestamp: Date.now(),
         type: 'default',
         category: 'visibility',
         message: `Tab visible (away ${awayLabel})`,
@@ -42,10 +43,10 @@ export class VisibilityInterceptor implements Interceptor {
   };
 
   private handleOnline = (): void => {
-    this.push({ type: 'default', category: 'network', message: 'Online', level: 'info' });
+    this.push({ timestamp: Date.now(), type: 'default', category: 'network', message: 'Online', level: 'info' });
   };
 
   private handleOffline = (): void => {
-    this.push({ type: 'default', category: 'network', message: 'Offline', level: 'warning' });
+    this.push({ timestamp: Date.now(), type: 'default', category: 'network', message: 'Offline', level: 'warning' });
   };
 }

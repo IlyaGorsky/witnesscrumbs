@@ -308,7 +308,7 @@ function truncateError(message: string): { short: string; full: string; isTrunca
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export const formatDuration = (ms) => {
+export const formatDuration = (ms: number): string => {
   if (!ms || ms < 0) return '0:00';
 
   const totalSeconds = Math.floor(ms / 1000);
@@ -339,7 +339,7 @@ export const WitnesscrumbsWidget = (props: QaBreadcrumbsWidgetProps): JSX.Elemen
   useEffect(() => {
     if (!isRecording || !recordingStartTime) return;
 
-    let animationFrameId;
+    let animationFrameId = 0;
 
     const update = () => {
       const duration = Date.now() - recordingStartTime;
@@ -759,8 +759,8 @@ export const WitnesscrumbsWidget = (props: QaBreadcrumbsWidgetProps): JSX.Elemen
               const isExpanded = expandedErrors.has(b.timestamp);
 
               // Для HTTP запросов показываем дополнительную информацию
-              const showStatus = b.type === 'http' && b.data?.status;
-              const showDuration = b.type === 'http' && b.data?.duration;
+              const showStatus = b.type === 'http' && Boolean(b.data?.status);
+              const showDuration = b.type === 'http' && Boolean(b.data?.duration);
 
               return (
                 <div
@@ -829,15 +829,15 @@ export const WitnesscrumbsWidget = (props: QaBreadcrumbsWidgetProps): JSX.Elemen
                         >
                           {showStatus && (
                             <span style={{ color: statusColor(b.data!.status as number) }}>
-                              Статус: {b.data!.status}
+                              Статус: {String(b.data!.status)}
                             </span>
                           )}
-                          {showDuration && <span style={{ color: COLORS.text.muted }}>{b.data!.duration}ms</span>}
+                          {showDuration && <span style={{ color: COLORS.text.muted }}>{String(b.data!.duration)}ms</span>}
                         </div>
                       )}
-                      {b.data?.text && (
+                      {Boolean(b.data?.text) && (
                         <div style={{ marginTop: SPACING.xs, fontSize: TYPOGRAPHY.size.xs, color: COLORS.text.muted }}>
-                          "{b.data.text}"
+                          "{String(b.data!.text)}"
                         </div>
                       )}
                       {isExpanded && (
