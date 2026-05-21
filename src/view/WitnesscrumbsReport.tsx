@@ -2,6 +2,7 @@ import React from 'react';
 
 import { BORDERS, COLORS, formatDetail, getIcon, SPACING, TYPOGRAPHY } from './dispay';
 import { Breadcrumb } from '../core/types';
+import { buildLlmPrompt, ALL_ROLES, type Role } from '../core/llm';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -636,6 +637,105 @@ const PageGroupComponent = ({ page, index }: { page: PageGroup; index: number })
   );
 };
 
+// ─── LLM Prompt Section ─────────────────────────────────────────────────────
+
+const ROLE_LABELS: Record<Role, string> = {
+  developer: 'Developer',
+  qa: 'QA',
+  support: 'Support',
+  manager: 'Manager',
+};
+
+const MAX_URL_LENGTH = 8000;
+
+const buildLlmLinks = (full: string): { chatgpt?: string; perplexity?: string } => {
+  const encoded = encodeURIComponent(full);
+  const chatgptUrl = `https://chatgpt.com/?q=${encoded}`;
+  const perplexityUrl = `https://www.perplexity.ai/?q=${encoded}`;
+
+  return {
+    chatgpt: chatgptUrl.length <= MAX_URL_LENGTH ? chatgptUrl : undefined,
+    perplexity: perplexityUrl.length <= MAX_URL_LENGTH ? perplexityUrl : undefined,
+  };
+};
+
+const LlmPromptSection = ({
+  logs,
+  context,
+}: {
+  logs: Breadcrumb[];
+  context: { url?: string; ua?: string; viewport?: string; lang?: string; online?: string };
+}) => {
+  const prompts = ALL_ROLES.map((role) => {
+    const { system, user } = buildLlmPrompt(logs, role, context);
+    const full = `${system}\n\n---\n\n${user}`;
+    // Try compact version for URL links (much shorter)
+    const { system: csys, user: cusr } = buildLlmPrompt(logs, role, context, true);
+    const compact = `${csys}\n\n---\n\n${cusr}`;
+    const links = buildLlmLinks(compact);
+    return { role, full, links };
+  });
+
+  const hasAnyLink = prompts.some((p) => p.links.chatgpt || p.links.perplexity);
+
+  return (
+    <div className="llm-section">
+      <div className="llm-header">
+        <span className="llm-title">LLM BUG ANALYSIS PROMPTS</span>
+        <span className="llm-subtitle">
+          {hasAnyLink
+            ? 'Open in ChatGPT / Perplexity or copy for any LLM'
+            : 'Copy a prompt and paste into ChatGPT / Claude / any LLM'}
+        </span>
+      </div>
+      <div className="llm-tabs">
+        {prompts.map(({ role, full, links }) => (
+          <details key={role} className="llm-tab" data-role={role}>
+            <summary className="llm-tab-summary">
+              <Badge text={ROLE_LABELS[role]} color={
+                role === 'developer' ? COLORS.accent.blue :
+                role === 'qa' ? COLORS.accent.green :
+                role === 'support' ? COLORS.accent.orange :
+                COLORS.accent.purple
+              } />
+              <span className="llm-tab-hint">
+                {role === 'developer' && 'Root cause, stack traces, fix suggestions'}
+                {role === 'qa' && 'Steps to reproduce, severity, environment'}
+                {role === 'support' && 'Plain-language explanation, workaround, draft reply'}
+                {role === 'manager' && 'Business impact, priority, ownership'}
+              </span>
+            </summary>
+            <div className="llm-tab-content">
+              <div className="llm-copy-row">
+                {links.chatgpt && (
+                  <a className="llm-link-btn llm-link-chatgpt" href={links.chatgpt} target="_blank" rel="noopener noreferrer">
+                    Open in ChatGPT
+                  </a>
+                )}
+                {links.perplexity && (
+                  <a className="llm-link-btn llm-link-perplexity" href={links.perplexity} target="_blank" rel="noopener noreferrer">
+                    Open in Perplexity
+                  </a>
+                )}
+                <button className="llm-copy-btn">Copy prompt</button>
+              </div>
+              {!links.chatgpt && !links.perplexity && (
+                <div className="llm-url-warning">
+                  Prompt too long for direct links ({full.length} chars). Use "Copy prompt" instead.
+                </div>
+              )}
+              <details className="llm-prompt-details">
+                <summary className="llm-prompt-toggle">Show raw prompt</summary>
+                <pre className="llm-prompt-text">{full}</pre>
+              </details>
+            </div>
+          </details>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // ─── Failed Summary ──────────────────────────────────────────────────────────
 
 const FailedSummary = ({ logs, pages }: { logs: Breadcrumb[]; pages: PageGroup[] }) => {
@@ -907,6 +1007,34 @@ const REPORT_STYLES = `
   .full-video-section .video-player { border-top: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.border.light}; }
 
   .report-footer { margin-top: ${SPACING['5xl']}; padding-top: ${SPACING['2xl']}; border-top: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.border.light}; font-size: ${TYPOGRAPHY.size.sm}; color: ${COLORS.text.dim}; text-align: center; font-family: ${TYPOGRAPHY.family.mono}; }
+
+  .llm-section { margin-top: ${SPACING['5xl']}; border: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.border.light}; background: ${COLORS.bg.secondary}; }
+  .llm-header { padding: ${SPACING.xl} ${SPACING['2xl']}; background: ${COLORS.bg.tertiary}; border-bottom: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.border.light}; display: flex; align-items: baseline; gap: ${SPACING['2xl']}; }
+  .llm-title { font-family: ${TYPOGRAPHY.family.mono}; font-size: ${TYPOGRAPHY.size.base}; font-weight: ${TYPOGRAPHY.weight.bold}; color: ${COLORS.accent.cyan}; text-transform: uppercase; letter-spacing: ${TYPOGRAPHY.letterSpacing.wide}; }
+  .llm-subtitle { font-size: ${TYPOGRAPHY.size.sm}; color: ${COLORS.text.muted}; }
+  .llm-tabs { padding: ${SPACING.base}; display: flex; flex-direction: column; gap: ${SPACING.base}; }
+  .llm-tab { border: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.border.light}; }
+  .llm-tab summary { list-style: none; cursor: pointer; padding: ${SPACING.base} ${SPACING.xl}; background: ${COLORS.bg.tertiary}; display: flex; align-items: center; gap: ${SPACING.xl}; font-family: ${TYPOGRAPHY.family.mono}; font-size: ${TYPOGRAPHY.size.sm}; }
+  .llm-tab summary::-webkit-details-marker { display: none; }
+  .llm-tab summary::before { content: '\\25B6'; font-size: ${TYPOGRAPHY.size.xs}; color: ${COLORS.text.muted}; margin-right: ${SPACING.sm}; }
+  .llm-tab[open] summary::before { content: '\\25BC'; }
+  .llm-tab-hint { color: ${COLORS.text.muted}; flex: 1; }
+  .llm-tab-content { border-top: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.border.light}; }
+  .llm-copy-row { padding: ${SPACING.base} ${SPACING.xl}; display: flex; justify-content: flex-end; background: ${COLORS.bg.secondary}; border-bottom: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.border.light}; }
+  .llm-copy-btn, .llm-link-btn { font-family: ${TYPOGRAPHY.family.mono}; font-size: ${TYPOGRAPHY.size.sm}; font-weight: ${TYPOGRAPHY.weight.semibold}; padding: ${SPACING.sm} ${SPACING['2xl']}; cursor: pointer; text-transform: uppercase; letter-spacing: ${TYPOGRAPHY.letterSpacing.normal}; text-decoration: none; display: inline-block; }
+  .llm-copy-btn { background: ${COLORS.accent.cyan}22; border: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.accent.cyan}; color: ${COLORS.accent.cyan}; }
+  .llm-copy-btn:hover { background: ${COLORS.accent.cyan}44; }
+  .llm-link-chatgpt { background: ${COLORS.accent.green}22; border: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.accent.green}; color: ${COLORS.accent.green}; }
+  .llm-link-chatgpt:hover { background: ${COLORS.accent.green}44; }
+  .llm-link-perplexity { background: ${COLORS.accent.blue}22; border: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.accent.blue}; color: ${COLORS.accent.blue}; }
+  .llm-link-perplexity:hover { background: ${COLORS.accent.blue}44; }
+  .llm-url-warning { padding: ${SPACING.sm} ${SPACING.xl}; font-size: ${TYPOGRAPHY.size.xs}; color: ${COLORS.text.muted}; font-family: ${TYPOGRAPHY.family.mono}; border-bottom: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.border.light}; }
+  .llm-prompt-details { border-top: ${BORDERS.width.thin} ${BORDERS.style} ${COLORS.border.light}; }
+  .llm-prompt-toggle { padding: ${SPACING.base} ${SPACING.xl}; background: ${COLORS.bg.secondary}; cursor: pointer; list-style: none; font-family: ${TYPOGRAPHY.family.mono}; font-size: ${TYPOGRAPHY.size.xs}; color: ${COLORS.text.muted}; text-transform: uppercase; letter-spacing: ${TYPOGRAPHY.letterSpacing.normal}; }
+  .llm-prompt-toggle::-webkit-details-marker { display: none; }
+  .llm-prompt-toggle::before { content: '\\25B6'; font-size: 8px; margin-right: ${SPACING.sm}; }
+  .llm-prompt-details[open] .llm-prompt-toggle::before { content: '\\25BC'; }
+  .llm-prompt-text { padding: ${SPACING.xl}; background: ${COLORS.bg.primary}; font-family: ${TYPOGRAPHY.family.mono}; font-size: ${TYPOGRAPHY.size.sm}; color: ${COLORS.text.tertiary}; white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow-y: auto; line-height: 1.6; margin: 0; }
 `;
 
 // ─── Main Report ─────────────────────────────────────────────────────────────
@@ -1005,6 +1133,7 @@ export const Report = ({
 
         {globalRequests.length > 0 && <Waterfall requests={globalRequests} startTime={globalRequests[0].timestamp} />}
         <FailedSummary logs={logs} pages={pages} />
+        <LlmPromptSection logs={logs} context={{ url, ua, viewport, lang, online }} />
 
         {fullVideo && (
           <div className="full-video-section">
@@ -1016,6 +1145,17 @@ export const Report = ({
         )}
 
         <div className="report-footer">qa-breadcrumbs · {timestamp}</div>
+        <script dangerouslySetInnerHTML={{ __html: `
+          document.querySelectorAll('.llm-copy-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              var pre = this.closest('.llm-tab-content').querySelector('.llm-prompt-text');
+              navigator.clipboard.writeText(pre.textContent).then(function() {
+                btn.textContent = 'Copied!';
+                setTimeout(function() { btn.textContent = 'Copy prompt'; }, 1500);
+              });
+            });
+          });
+        `}} />
       </body>
     </html>
   );
