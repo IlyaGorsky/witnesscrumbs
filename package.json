@@ -1,6 +1,6 @@
 {
   "name": "witnesscrumbs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Breadcrumbs collector with session video, LLM-ready prompts and an HTML report — drop-in QA witness for the browser.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -61,12 +61,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gorsky-art/witnesscrumbs.git"
+    "url": "git+https://github.com/IlyaGorsky/witnesscrumbs.git"
   },
   "bugs": {
-    "url": "https://github.com/gorsky-art/witnesscrumbs/issues"
+    "url": "https://github.com/IlyaGorsky/witnesscrumbs/issues"
   },
-  "homepage": "https://github.com/gorsky-art/witnesscrumbs#readme",
+  "homepage": "https://github.com/IlyaGorsky/witnesscrumbs#readme",
   "engines": {
     "node": ">=18"
   },
