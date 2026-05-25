@@ -10,13 +10,15 @@ import { Breadcrumb } from '../core/types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface QaBreadcrumbsWidgetProps extends Partial<BreadcrumbsCollectorConfig> {
-  videoConfig?: {
-    bufferSeconds?: number;
-    secondsBefore?: number;
-    secondsAfter?: number;
-  };
-}
+type VideoConfig = {
+  bufferSeconds?: number;
+  secondsBefore?: number;
+  secondsAfter?: number;
+};
+
+export type QaBreadcrumbsWidgetProps =
+  | { collector: BreadcrumbsCollector; videoConfig?: VideoConfig }
+  | (Partial<BreadcrumbsCollectorConfig> & { collector?: never; videoConfig?: VideoConfig });
 
 // ─── Colors & Constants ──────────────────────────────────────────────────────
 const cursorStyles = `
@@ -329,7 +331,10 @@ export const formatDuration = (ms: number): string => {
 
 
 export const WitnesscrumbsWidget = (props: QaBreadcrumbsWidgetProps): JSX.Element => {
-  const breadcumbCollector = useMemo<BreadcrumbsCollector>(() => new BreadcrumbsCollector(props), []);
+  const breadcumbCollector = useMemo<BreadcrumbsCollector>(
+    () => props.collector ?? new BreadcrumbsCollector(props),
+    []
+  );
   const [videoRecorder] = useState(() => new VideoRecorder(breadcumbCollector));
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState<string | null>(null);
