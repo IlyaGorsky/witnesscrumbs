@@ -1,6 +1,6 @@
 {
   "name": "witnesscrumbs",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Breadcrumbs collector with session video, LLM-ready prompts and an HTML report — drop-in QA witness for the browser.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -33,8 +33,12 @@
     "react-dom": ">=18"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true },
-    "react-dom": { "optional": true }
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
